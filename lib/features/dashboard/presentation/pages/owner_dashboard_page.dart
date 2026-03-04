@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:oms/features/auth/presentation/pages/login_page.dart';
+import 'package:oms/features/dashboard/data/datasources/dashboard_remote_data_source.dart';
+import 'package:oms/features/dashboard/data/repositories/dashboard_repository_impl.dart';
+import 'package:oms/features/dashboard/domain/entities/user_profile.dart';
+import 'package:oms/features/dashboard/domain/usecases/get_user_profile_usecase.dart';
+import 'package:oms/features/dashboard/presentation/pages/profile_page.dart';
 import 'package:oms/features/onboarding/presentation/pages/subscription_page.dart';
 import 'package:oms/services/auth_service.dart';
 
@@ -18,6 +24,46 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
     _OnboardingStep(title: 'Set up your menu', isCompleted: false),
     _OnboardingStep(title: 'Start taking orders', isCompleted: false),
   ];
+
+  late final http.Client _httpClient;
+  late final GetUserProfileUseCase _getUserProfileUseCase;
+  UserProfile? _userProfile;
+  bool _isLoadingProfile = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _httpClient = http.Client();
+    final repository = DashboardRepositoryImpl(
+      remoteDataSource: DashboardRemoteDataSourceImpl(client: _httpClient),
+    );
+    _getUserProfileUseCase = GetUserProfileUseCase(repository);
+    _fetchUserProfile();
+  }
+
+  @override
+  void dispose() {
+    _httpClient.close();
+    super.dispose();
+  }
+
+  Future<void> _fetchUserProfile() async {
+    try {
+      final token = await AuthService.getAccessToken();
+      if (token == null || token.isEmpty) return;
+      final profile = await _getUserProfileUseCase(accessToken: token);
+      if (mounted) {
+        setState(() {
+          _userProfile = profile;
+          _isLoadingProfile = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingProfile = false);
+      }
+    }
+  }
 
   Future<void> _handleLogout() async {
     final confirmed = await showDialog<bool>(
@@ -73,6 +119,19 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
             onPressed: () {},
           ),
           IconButton(
+            icon: const Icon(
+              Icons.person_outline_rounded,
+              color: Colors.white70,
+            ),
+            tooltip: 'Profile',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout, color: Colors.white70),
             tooltip: 'Logout',
             onPressed: _handleLogout,
@@ -81,7 +140,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          await Future.delayed(const Duration(seconds: 1));
+          await _fetchUserProfile();
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -116,16 +175,58 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
   }
 
   Widget _buildWelcomeHeader() {
+    final username = _userProfile?.username ?? '';
+    final planType = _userProfile?.planType ?? '';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Welcome back',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: _isLoadingProfile
+                  ? const SizedBox(
+                      height: 28,
+                      width: 160,
+                      child: LinearProgressIndicator(
+                        backgroundColor: Color(0xFF2A2A2A),
+                        color: Color(0xFFFC5E03),
+                      ),
+                    )
+                  : Text(
+                      'Hello, $username',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+            ),
+            if (!_isLoadingProfile && planType.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(left: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFC5E03).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFFFC5E03).withOpacity(0.4),
+                  ),
+                ),
+                child: Text(
+                  planType,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFFC5E03),
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 4),
         Text(

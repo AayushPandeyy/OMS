@@ -12,7 +12,7 @@ class RegisterUserModel extends RegisterUserResponse {
     return RegisterUserModel(
       username: json['username'] as String? ?? '',
       email: json['email'] as String? ?? '',
-      phoneNumber: json['phone_number'] as String? ?? '',
+      phoneNumber: json['phoneNumber'] as String? ?? '',
       role: json['role'] as String? ?? 'owner',
     );
   }
@@ -31,7 +31,7 @@ class RegisterUserModel extends RegisterUserResponse {
     return {
       'username': username,
       'email': email,
-      'phone_number': phoneNumber,
+      'phoneNumber': phoneNumber,
       if (password != null) 'password': password,
       'role': role,
     };
